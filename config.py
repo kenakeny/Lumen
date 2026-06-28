@@ -1,0 +1,28 @@
+from panda3d.core import BitMask32
+
+PLAYER_SPEED = 12
+CAM_DISTANCE = 10
+CAM_HEIGHT = 5
+CAM_DAMPING = 5
+
+ORB_SCORE_VALUE = 10
+
+GRAVITY = 30
+JUMP_SPEED = 12
+
+ROOM_SIZE = 10
+WALL_HEIGHT = 4
+WALL_THICKNESS = 0.4
+DOOR_WIDTH = 3
+DUNGEON_GRID = 7
+DUNGEON_ROOMS = 15
+
+
+class Masks:
+    EMPTY       = BitMask32(0)
+    PLAYER      = BitMask32.bit(0)
+    ORB         = BitMask32.bit(1)
+    HAZARD      = BitMask32.bit(2)
+    ENEMY       = BitMask32.bit(3)
+    WALL        = BitMask32.bit(4)
+    FLOOR       = BitMask32.bit(5)
