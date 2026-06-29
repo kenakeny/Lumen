@@ -1,7 +1,9 @@
 from direct.actor.Actor import Actor
 from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpPosInterval
-from panda3d.core import Vec3, CollisionSphere, CollisionNode, CollisionRay, KeyboardButton
-from math import atan2, degrees, sin, cos, radians
+from panda3d.core import (
+    Vec3, CollisionSphere, CollisionNode, CollisionRay, KeyboardButton,
+)
+from math import atan2, degrees
 from config import PLAYER_SPEED, SPRINT_MULTIPLIER, GRAVITY, JUMP_SPEED, Masks
 
 
@@ -12,6 +14,7 @@ class Player:
         self.speed = PLAYER_SPEED
         self.vel_z = 0.0
         self.is_grounded = True
+        self.aim_dir = Vec3(0, 1, 0)   # world-space facing/shoot direction
 
         self.node = Actor(
             "assets/models/PandaChan/act_p3d_chan.egg.pz",
@@ -75,15 +78,20 @@ class Player:
         if self._down("right"):
             input_dir.x += 1
 
+        # Single source of truth: the camera's flattened forward vector.
+        # Facing, aim, and movement are all derived from it every frame, so
+        # orbiting (and releasing) needs no special handling.
+        fwd = self.app.cam_controller.get_forward()
+        right = Vec3(fwd.y, -fwd.x, 0)
+        self.aim_dir = fwd
+        # PandaChan's model front is offset 180deg, so add it for the visual
+        self.node.setH(degrees(atan2(-fwd.x, fwd.y)) + 180)
+
         moving = input_dir.lengthSquared() > 0
         if moving:
             input_dir.normalize()
-            rad = radians(cam_yaw)
-            direction = Vec3(
-                input_dir.x * cos(rad) - input_dir.y * sin(rad),
-                input_dir.x * sin(rad) + input_dir.y * cos(rad),
-                0,
-            )
+            # W follows camera-forward; A/D strafe along its perpendicular
+            direction = fwd * input_dir.y + right * input_dir.x
             speed = self.speed
             if self._down("sprint"):
                 speed *= SPRINT_MULTIPLIER
@@ -91,8 +99,6 @@ class Player:
             pos.x += direction.x * speed * dt
             pos.y += direction.y * speed * dt
             self.node.setFluidPos(pos)
-            angle = degrees(atan2(-direction.x, direction.y)) + 180
-            self.node.setH(angle)
 
         if self._down("jump") and self.is_grounded:
             self.vel_z = JUMP_SPEED

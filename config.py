@@ -5,7 +5,7 @@ SPRINT_MULTIPLIER = 1.8
 CAM_DISTANCE = 9
 CAM_HEIGHT = 1.8     # look-at height on the character (head/shoulder level)
 CAM_PITCH = 12       # resting downward tilt, degrees (low, behind-the-shoulder)
-CAM_DAMPING = 5
+CAM_DAMPING = 9
 
 ORB_SCORE_VALUE = 10
 
@@ -26,6 +26,17 @@ ENEMY_DAMAGE = 10
 ENEMY_DAMAGE_COOLDOWN = 1.0
 
 HAZARD_DAMAGE_PER_SEC = 15
+
+# spawning: initial counts, live caps, and how often new ones appear
+ORB_INITIAL_COUNT = 10
+ORB_MAX = 18
+ORB_SPAWN_INTERVAL = 5.0
+
+ENEMY_INITIAL_COUNT = 8
+ENEMY_MAX = 14
+ENEMY_SPAWN_INTERVAL = 7.0
+SPAWN_MARGIN = 3.0          # keep spawns this far from room walls
+ENEMY_SPAWN_SAFE_DIST = 20  # don't spawn enemies this close to the player
 
 PROJECTILE_SPEED = 18
 PROJECTILE_LIFETIME = 3.0

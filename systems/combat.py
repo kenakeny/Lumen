@@ -1,4 +1,3 @@
-from math import sin, cos, radians
 from direct.interval.IntervalGlobal import Sequence, LerpScaleInterval, LerpColorScaleInterval, Parallel, Func
 from panda3d.core import Vec3, Vec4, CollisionSphere, CollisionNode
 from config import (
@@ -53,9 +52,10 @@ class CombatSystem:
         if self.shoot_cooldown > 0:
             return
         player = self.app.player
-        heading = player.node.getH()
-        rad = radians(heading)
-        direction = Vec3(-sin(rad), cos(rad), 0)
+        direction = Vec3(player.aim_dir.x, player.aim_dir.y, 0)
+        if direction.lengthSquared() < 1e-6:
+            return
+        direction.normalize()
         spawn_pos = player.node.getPos() + Vec3(0, 0, 1) + direction * 1.0
 
         proj = Projectile(self.app, spawn_pos, direction)

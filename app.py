@@ -5,14 +5,17 @@ from player.player import Player
 from player.camera_controller import CameraController
 from entities.orb import Orb
 from entities.enemy import Enemy
-from entities.hazard import HazardZone
+from entities.hazard import HazardZone, HAZARD_SIZE
 from systems.collision_manager import CollisionManager
 from systems.combat import CombatSystem
 from ui.hud import HUD
 from world.dungeon import Dungeon
 from config import (
     ORB_SCORE_VALUE, ENEMY_DAMAGE, ENEMY_DAMAGE_COOLDOWN,
-    HAZARD_DAMAGE_PER_SEC,
+    HAZARD_DAMAGE_PER_SEC, ROOM_SIZE,
+    ORB_INITIAL_COUNT, ORB_MAX, ORB_SPAWN_INTERVAL,
+    ENEMY_INITIAL_COUNT, ENEMY_MAX, ENEMY_SPAWN_INTERVAL,
+    SPAWN_MARGIN, ENEMY_SPAWN_SAFE_DIST,
 )
 
 
@@ -32,7 +35,6 @@ class App(ShowBase):
         self.score = 0
         self.current_level = 1
         self._enemy_dmg_cooldown = 0.0
-        self._in_hazard = False
         self._hazard_timer = 0.0
 
         self._setup_world()
@@ -45,7 +47,6 @@ class App(ShowBase):
 
         self.collision_mgr.accept("player-into-orb", self._on_orb_collected)
         self.collision_mgr.accept("player-into-enemy", self._on_enemy_hit)
-        self.collision_mgr.accept("player-into-hazard", self._on_hazard_enter)
         self.collision_mgr.accept("projectile-into-enemy", self.combat.on_hit)
 
         self.taskMgr.add(self._update, "game_update")
@@ -74,26 +75,63 @@ class App(ShowBase):
 
         room_centers = self.dungeon.get_room_centers()
         spawn_room = self.dungeon.get_spawn_pos()
-        non_spawn = [c for c in room_centers
-                     if abs(c.x - spawn_room.x) > 1 or abs(c.y - spawn_room.y) > 1]
+        self.non_spawn = [c for c in room_centers
+                          if abs(c.x - spawn_room.x) > 1 or abs(c.y - spawn_room.y) > 1]
 
         self.orbs = []
-        orb_rooms = random.sample(non_spawn, min(5, len(non_spawn)))
-        for pos in orb_rooms:
-            self.orbs.append(Orb(self, pos))
+        for _ in range(ORB_INITIAL_COUNT):
+            self._spawn_orb()
 
         self.enemies = []
-        enemy_count = max(1, len(non_spawn) // 3)
-        enemy_rooms = random.sample(non_spawn, min(enemy_count, len(non_spawn)))
-        for center in enemy_rooms:
-            self.enemies.append(Enemy(self, center, center))
+        for _ in range(ENEMY_INITIAL_COUNT):
+            center = random.choice(self.non_spawn)
+            self.enemies.append(Enemy(self, self._scatter_in_room(center), center))
 
         self.hazards = []
-        remaining = [c for c in non_spawn if c not in enemy_rooms]
-        hazard_count = max(1, len(remaining) // 4)
-        hazard_rooms = random.sample(remaining, min(hazard_count, len(remaining)))
-        for center in hazard_rooms:
+        hazard_count = max(1, len(self.non_spawn) // 4)
+        for center in random.sample(self.non_spawn, min(hazard_count, len(self.non_spawn))):
             self.hazards.append(HazardZone(self, center))
+
+        self._orb_spawn_timer = 0.0
+        self._enemy_spawn_timer = 0.0
+
+    def _scatter_in_room(self, center):
+        """Random point inside a room, kept away from the walls."""
+        hs = ROOM_SIZE / 2 - SPAWN_MARGIN
+        return p3d.Point3(
+            center.x + random.uniform(-hs, hs),
+            center.y + random.uniform(-hs, hs),
+            center.z,
+        )
+
+    def _spawn_orb(self):
+        center = random.choice(self.non_spawn)
+        self.orbs.append(Orb(self, self._scatter_in_room(center)))
+
+    def _spawn_enemy(self):
+        # prefer rooms that aren't right on top of the player
+        player_pos = self.player.node.getPos()
+        far = [c for c in self.non_spawn
+               if (c - player_pos).lengthSquared() > ENEMY_SPAWN_SAFE_DIST ** 2]
+        center = random.choice(far or self.non_spawn)
+        self.enemies.append(Enemy(self, self._scatter_in_room(center), center))
+
+    def _update_spawns(self, dt):
+        # drop dead/collected entries so the lists don't grow unbounded
+        self.enemies = [e for e in self.enemies if e.alive]
+        self.orbs = [o for o in self.orbs if not o.collected]
+
+        self._orb_spawn_timer += dt
+        if self._orb_spawn_timer >= ORB_SPAWN_INTERVAL:
+            self._orb_spawn_timer = 0.0
+            if len(self.orbs) < ORB_MAX:
+                self._spawn_orb()
+
+        self._enemy_spawn_timer += dt
+        if self._enemy_spawn_timer >= ENEMY_SPAWN_INTERVAL:
+            self._enemy_spawn_timer = 0.0
+            if len(self.enemies) < ENEMY_MAX:
+                self._spawn_enemy()
 
     def _on_orb_collected(self, entry):
         orb_np = entry.getIntoNodePath().getParent()
@@ -124,9 +162,15 @@ class App(ShowBase):
             knockback = p3d.Vec3(0, 1, 0)
         self.player.apply_knockback(knockback)
 
-    def _on_hazard_enter(self, entry):
-        self._in_hazard = True
-        self._hazard_timer = 0.0
+    def _player_in_hazard(self):
+        p = self.player.node.getPos()
+        for h in self.hazards:
+            if not h.active:
+                continue
+            hp = h.node.getPos()
+            if abs(p.x - hp.x) <= HAZARD_SIZE and abs(p.y - hp.y) <= HAZARD_SIZE:
+                return True
+        return False
 
     def _update(self, task):
         dt = globalClock.getDt()
@@ -138,6 +182,7 @@ class App(ShowBase):
             enemy.update(dt, player_pos)
 
         self.combat.update(dt)
+        self._update_spawns(dt)
 
         self.collision_mgr.traverse()
 
@@ -150,13 +195,14 @@ class App(ShowBase):
         if self._enemy_dmg_cooldown > 0:
             self._enemy_dmg_cooldown -= dt
 
-        if self._in_hazard:
+        if self._player_in_hazard():
             self._hazard_timer += dt
             if self._hazard_timer >= 0.5:
                 self.player.take_damage(int(HAZARD_DAMAGE_PER_SEC * self._hazard_timer))
                 self._hazard_timer = 0.0
                 self.hud.show_feedback("Burning!", color=(1, 0.4, 0.0, 1))
-            self._in_hazard = False
+        else:
+            self._hazard_timer = 0.0
 
         self.hud.update(self.player.hp, 100, self.score, self.current_level)
         self.cam_controller.update(dt)
