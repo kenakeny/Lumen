@@ -114,3 +114,7 @@ class CombatSystem:
         for p in self.projectiles:
             p.destroy()
         self.projectiles.clear()
+
+    def destroy(self):
+        self.app.ignore("mouse1")
+        self.destroy_all()

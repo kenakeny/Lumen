@@ -19,6 +19,7 @@ class Player:
         self.is_grounded = True
         self.aim_dir = Vec3(0, 1, 0)   # world-space facing/shoot direction
         self.knockback = Vec3(0, 0, 0)  # decaying horizontal knockback velocity
+        self._flash_seq = None          # active damage-flash interval, if any
 
         self.node = Actor(
             "assets/models/PandaChan/act_p3d_chan.egg.pz",
@@ -159,7 +160,10 @@ class Player:
     def take_damage(self, amount):
         self.hp -= amount
         self.node.setColorScale(1, 0.3, 0.3, 1)
-        Sequence(Wait(0.15), Func(self.node.clearColorScale)).start()
+        if self._flash_seq:
+            self._flash_seq.finish()
+        self._flash_seq = Sequence(Wait(0.15), Func(self.node.clearColorScale))
+        self._flash_seq.start()
         if self.hp <= 0:
             self.hp = 0
             self.die()
@@ -172,9 +176,17 @@ class Player:
         self.knockback = d * force
 
     def die(self):
-        print("Player has died.")
+        # the App detects hp <= 0 and handles game over; nothing to do here
+        pass
 
     def heal(self, amount):
         self.hp += amount
         if self.hp > 100:
             self.hp = 100
+
+    def destroy(self):
+        if self._flash_seq:
+            self._flash_seq.finish()
+            self._flash_seq = None
+        self.node.cleanup()      # Actor needs cleanup before removal
+        self.node.removeNode()

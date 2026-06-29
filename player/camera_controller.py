@@ -30,6 +30,7 @@ class CameraController:
         self._look_ready = False
 
         # hide the OS cursor; the HUD crosshair is the aim marker now
+        self._captured = True
         props = WindowProperties()
         props.setCursorHidden(True)
         app.win.requestProperties(props)
@@ -82,9 +83,27 @@ class CameraController:
     def _zoom_out(self):
         self.distance = min(self.zoom_max, self.distance + self.zoom_step)
 
+    def set_captured(self, captured):
+        """Capture (hide + lock) or release the mouse — released for menus."""
+        self._captured = captured
+        props = WindowProperties()
+        props.setCursorHidden(captured)
+        self.app.win.requestProperties(props)
+        if captured:
+            self._look_ready = False   # don't jump on re-capture
+
+    def destroy(self):
+        self.app.ignore("wheel_up")
+        self.app.ignore("wheel_down")
+        self.set_captured(False)
+        self._dummy.removeNode()
+        self._cam_seg_np.removeNode()
+
     def _mouselook(self):
         """Rotate the camera from raw mouse motion, recentering the pointer
         each frame so it never hits the window edge (FPS-style mouse-look)."""
+        if not self._captured:
+            return
         win = self.app.win
         cx, cy = win.getXSize() // 2, win.getYSize() // 2
         ptr = win.getPointer(0)

@@ -9,6 +9,7 @@ from entities.hazard import HazardZone, HAZARD_SIZE
 from systems.collision_manager import CollisionManager
 from systems.combat import CombatSystem
 from ui.hud import HUD
+from ui.menu import MainMenu, PauseMenu
 from world.dungeon import Dungeon
 from config import (
     ORB_SCORE_VALUE, ENEMY_DAMAGE, ENEMY_DAMAGE_COOLDOWN,
@@ -31,6 +32,17 @@ class App(ShowBase):
 
         self._setup_lighting()
 
+        # show the menu first; the game world and loop start on "Start"
+        self._started = False
+        self.menu = MainMenu(self, on_start=self._start_game)
+
+    def _start_game(self):
+        if self._started:
+            return
+        self._started = True
+        self.paused = False
+        self.pause_menu = None
+
         self.collision_mgr = CollisionManager(self)
         self.score = 0
         self.current_level = 1
@@ -39,17 +51,80 @@ class App(ShowBase):
 
         self._setup_world()
 
-        self.player.col_np.show()
-        self.player.push_np.show()
-
         self.hud = HUD(self)
         self.combat = CombatSystem(self)
 
         self.collision_mgr.accept("player-into-orb", self._on_orb_collected)
         self.collision_mgr.accept("player-into-enemy", self._on_enemy_hit)
         self.collision_mgr.accept("projectile-into-enemy", self.combat.on_hit)
+        self.accept("escape", self._toggle_pause)
 
         self.taskMgr.add(self._update, "game_update")
+
+    # --- pause / teardown / game over --------------------------------------
+
+    def _toggle_pause(self):
+        if not self._started:
+            return
+        if self.paused:
+            self._resume()
+        else:
+            self._pause()
+
+    def _pause(self):
+        self.paused = True
+        self.cam_controller.set_captured(False)   # free the cursor for the menu
+        self.pause_menu = PauseMenu(
+            self, on_resume=self._resume, on_quit=self._quit_to_menu)
+
+    def _resume(self):
+        if self.pause_menu:
+            self.pause_menu.destroy()
+            self.pause_menu = None
+        self.paused = False
+        self.cam_controller.set_captured(True)
+
+    def _quit_to_menu(self):
+        self._teardown_game()
+        self.menu = MainMenu(self, on_start=self._start_game)
+
+    def _game_over(self):
+        score = self.score
+        self._teardown_game()
+        self.menu = MainMenu(
+            self, on_start=self._start_game, message=f"You died    Score: {score}")
+
+    def _teardown_game(self):
+        self.taskMgr.remove("game_update")
+        self.ignore("player-into-orb")
+        self.ignore("player-into-enemy")
+        self.ignore("projectile-into-enemy")
+        self.ignore("escape")
+
+        if self.pause_menu:
+            self.pause_menu.destroy()
+            self.pause_menu = None
+        self.paused = False
+
+        for o in self.orbs:
+            if not o.collected:
+                o.destroy()
+        for e in self.enemies:
+            if e.alive:
+                e.destroy()
+        for h in self.hazards:
+            if h.active:
+                h.destroy()
+        self.orbs.clear()
+        self.enemies.clear()
+        self.hazards.clear()
+
+        self.combat.destroy()
+        self.cam_controller.destroy()   # also releases the mouse
+        self.player.destroy()
+        self.dungeon.destroy()
+        self.hud.destroy()
+        self._started = False
 
     def _setup_lighting(self):
         ambient = p3d.AmbientLight("ambient")
@@ -173,6 +248,9 @@ class App(ShowBase):
         return False
 
     def _update(self, task):
+        if self.paused:
+            return task.cont
+
         dt = globalClock.getDt()
 
         self.player.update(dt, self.cam_controller.yaw)
@@ -203,6 +281,10 @@ class App(ShowBase):
                 self.hud.show_feedback("Burning!", color=(1, 0.4, 0.0, 1))
         else:
             self._hazard_timer = 0.0
+
+        if self.player.hp <= 0:
+            self._game_over()
+            return task.done
 
         self.hud.update(self.player.hp, 100, self.score, self.current_level)
         self.cam_controller.update(dt)

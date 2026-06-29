@@ -48,6 +48,9 @@ class Dungeon:
                     openings.add(side)
             self.room_nodes[(gx, gy)] = build_room(self.root, gx, gy, openings)
 
+    def destroy(self):
+        self.root.removeNode()
+
     def get_spawn_pos(self):
         center = self.grid_size // 2
         return Point3(center * ROOM_SIZE, center * ROOM_SIZE, 0)
