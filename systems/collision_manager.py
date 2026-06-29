@@ -13,13 +13,16 @@ class CollisionManager:
         self.handler = CollisionHandlerEvent()
         self.handler.addInPattern("%fn-into-%in")
 
-        # pusher handler for solid environment collisions
+        # NOTE: must be the discrete pusher — CollisionHandlerFluidPusher does
+        # not detect CollisionBox into-solids in Panda3D 1.10, so the player
+        # passes straight through the (box-based) walls.
         self.pusher = CollisionHandlerPusher()
+        self.pusher.setHorizontal(True)
 
         # queue handler for ground ray
         self.ray_queue = CollisionHandlerQueue()
 
-        # we traverse manually in the update loop for correct timing
+        self.traverser.showCollisions(app.render)
 
     def register_from_collider(self, col_np):
         self.traverser.addCollider(col_np, self.handler)

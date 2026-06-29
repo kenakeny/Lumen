@@ -1,7 +1,8 @@
 from direct.actor.Actor import Actor
+from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpPosInterval
 from panda3d.core import Vec3, CollisionSphere, CollisionNode, CollisionRay
 from math import atan2, degrees, sin, cos, radians
-from config import PLAYER_SPEED, GRAVITY, JUMP_SPEED, Masks
+from config import PLAYER_SPEED, SPRINT_MULTIPLIER, GRAVITY, JUMP_SPEED, Masks
 
 
 class Player:
@@ -25,21 +26,18 @@ class Player:
         self.node.setPos(0, 0, 0)
         self.node.loop("idle")
 
-        # trigger collision (orbs, hazards, enemies)
         col_node = CollisionNode("player")
         col_node.addSolid(CollisionSphere(0, 0, 0.7, 0.7))
         col_node.setFromCollideMask(Masks.ORB | Masks.HAZARD | Masks.ENEMY)
         col_node.setIntoCollideMask(Masks.PLAYER)
         self.col_np = self.node.attachNewNode(col_node)
 
-        # wall pusher sphere (only walls push the player, not floors)
         push_node = CollisionNode("player_push")
         push_node.addSolid(CollisionSphere(0, 0, 0.7, 0.7))
         push_node.setFromCollideMask(Masks.WALL)
         push_node.setIntoCollideMask(Masks.EMPTY)
         self.push_np = self.node.attachNewNode(push_node)
 
-        # ground ray (cast downward to detect floor height)
         ray_node = CollisionNode("player_ray")
         ray_node.addSolid(CollisionRay(0, 0, 2.0, 0, 0, -1))
         ray_node.setFromCollideMask(Masks.FLOOR)
@@ -52,6 +50,7 @@ class Player:
             "left": False,
             "right": False,
             "jump": False,
+            "sprint": False,
         }
         self._current_anim = "idle"
         self._setup_input()
@@ -67,6 +66,8 @@ class Player:
         self.app.accept("d-up", self._set_key, ["right", False])
         self.app.accept("space", self._set_key, ["jump", True])
         self.app.accept("space-up", self._set_key, ["jump", False])
+        self.app.accept("shift", self._set_key, ["sprint", True])
+        self.app.accept("shift-up", self._set_key, ["sprint", False])
 
     def _set_key(self, key, value):
         self.key_map[key] = value
@@ -93,32 +94,37 @@ class Player:
                 input_dir.x * sin(rad) + input_dir.y * cos(rad),
                 0,
             )
+            speed = self.speed
+            if self.key_map["sprint"]:
+                speed *= SPRINT_MULTIPLIER
             pos = self.node.getPos()
-            pos.x += direction.x * self.speed * dt
-            pos.y += direction.y * self.speed * dt
-            self.node.setPos(pos)
+            pos.x += direction.x * speed * dt
+            pos.y += direction.y * speed * dt
+            self.node.setFluidPos(pos)
             angle = degrees(atan2(-direction.x, direction.y)) + 180
             self.node.setH(angle)
 
-        # jumping
         if self.key_map["jump"] and self.is_grounded:
             self.vel_z = JUMP_SPEED
             self.is_grounded = False
 
-        # gravity (only when airborne)
         if not self.is_grounded:
             self.vel_z -= GRAVITY * dt
             pos = self.node.getPos()
             pos.z += self.vel_z * dt
             self.node.setPos(pos)
 
-        # animation
         if moving and self._current_anim != "run":
             self.node.loop("run")
             self._current_anim = "run"
         elif not moving and self._current_anim != "idle":
             self.node.loop("idle")
             self._current_anim = "idle"
+
+        if moving and self.key_map["sprint"]:
+            self.node.setPlayRate(1.1, "run")
+        elif moving:
+            self.node.setPlayRate(0.7, "run")
 
     def apply_ground(self, ground_z):
         pos = self.node.getPos()
@@ -138,9 +144,16 @@ class Player:
 
     def take_damage(self, amount):
         self.hp -= amount
+        self.node.setColorScale(1, 0.3, 0.3, 1)
+        Sequence(Wait(0.15), Func(self.node.clearColorScale)).start()
         if self.hp <= 0:
             self.hp = 0
             self.die()
+
+    def apply_knockback(self, direction, force=5.0):
+        pos = self.node.getPos()
+        target = pos + direction * force
+        LerpPosInterval(self.node, 0.2, target, blendType="easeOut").start()
 
     def die(self):
         print("Player has died.")
