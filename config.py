@@ -27,9 +27,18 @@ DUNGEON_ROOMS = 15
 
 ENEMY_SPEED = 2.5
 ENEMY_CHASE_SPEED = 5
-ENEMY_DETECT_RANGE = 12
+ENEMY_DETECT_RANGE = 12        # acquire the player within this range
+ENEMY_LOSE_RANGE = 16          # give up the chase past this range (hysteresis)
 ENEMY_DAMAGE = 10
 ENEMY_DAMAGE_COOLDOWN = 1.0
+
+# attack state (telegraphed lunge)
+ENEMY_ATTACK_RANGE = 2.5       # close enough to wind up an attack
+ENEMY_ATTACK_WINDUP = 0.4      # telegraph time before the lunge
+ENEMY_ATTACK_LUNGE_SPEED = 16
+ENEMY_ATTACK_LUNGE_TIME = 0.22
+ENEMY_ATTACK_COOLDOWN = 0.8    # recover time after a lunge
+ENEMY_SEARCH_TIME = 3.0        # how long to hunt the last-seen spot before giving up
 
 HAZARD_DAMAGE_PER_SEC = 15
 
