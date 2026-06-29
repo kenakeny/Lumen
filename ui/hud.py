@@ -2,7 +2,7 @@ from direct.gui.OnscreenText import OnscreenText
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.DirectGui import DirectFrame
 from direct.interval.IntervalGlobal import Sequence, Wait, LerpColorScaleInterval, Func
-from panda3d.core import TextNode, TransparencyAttrib
+from panda3d.core import TextNode, TransparencyAttrib, LineSegs
 
 
 class HUD:
@@ -74,6 +74,23 @@ class HUD:
             mayChange=True,
         )
 
+        self.crosshair = self._make_crosshair()
+
+    def _make_crosshair(self):
+        """Center reticle marking the aim/shot line (aim is camera-forward)."""
+        gap, arm = 0.012, 0.035
+        ls = LineSegs("crosshair")
+        ls.setThickness(2.0)
+        ls.setColor(1, 1, 1, 0.85)
+        ls.moveTo(-gap - arm, 0, 0); ls.drawTo(-gap, 0, 0)   # left
+        ls.moveTo(gap, 0, 0);        ls.drawTo(gap + arm, 0, 0)   # right
+        ls.moveTo(0, 0, -gap - arm); ls.drawTo(0, 0, -gap)   # down
+        ls.moveTo(0, 0, gap);        ls.drawTo(0, 0, gap + arm)   # up
+        np = self.app.aspect2d.attachNewNode(ls.create())
+        np.setTransparency(TransparencyAttrib.MAlpha)
+        np.setBin("fixed", 0)
+        return np
+
     def update(self, hp, max_hp, score, level=1, multiplier=1):
         ratio = max(0, hp / max_hp)
         self.hp_bar["frameSize"] = (-0.3 * ratio, 0.3 * ratio, -0.04, 0.04)
@@ -120,3 +137,4 @@ class HUD:
         self.hp_text.destroy()
         self.feedback.destroy()
         self.combo_text.destroy()
+        self.crosshair.removeNode()

@@ -1,5 +1,5 @@
 from panda3d.core import (
-    Vec3, Point3, NodePath,
+    Vec3, Point3, NodePath, WindowProperties,
     CollisionTraverser, CollisionSegment, CollisionNode, CollisionHandlerQueue,
 )
 from math import sin, cos, radians
@@ -18,14 +18,18 @@ class CameraController:
         self.pitch = CAM_PITCH
         self.pitch_min = 5.0
         self.pitch_max = 70.0
-        self.mouse_sens = 200.0
+        self.mouse_sens = 0.12   # degrees of rotation per pixel of mouse motion
 
         self.zoom_min = 5.0
         self.zoom_max = 40.0
         self.zoom_step = 2.0
 
-        self._rotating = False
-        self._last_mouse = None
+        self._look_ready = False
+
+        # hide the OS cursor; the HUD crosshair is the aim marker now
+        props = WindowProperties()
+        props.setCursorHidden(True)
+        app.win.requestProperties(props)
 
         self._dummy = NodePath("cam_dummy")
         self._dummy.reparentTo(app.render)
@@ -42,13 +46,10 @@ class CameraController:
         self._cam_queue = CollisionHandlerQueue()
         self._cam_trav.addCollider(self._cam_seg_np, self._cam_queue)
 
-        # Hold right mouse to orbit the view (yaw + pitch). Aiming yields while
-        # dragging so the same mouse motion isn't fighting between the two.
-        # Wheel zooms.
+        # Mouse-look: moving the mouse steers the camera (and therefore aim,
+        # since aim = camera-forward). Wheel zooms.
         app.accept("wheel_up", self._zoom_in)
         app.accept("wheel_down", self._zoom_out)
-        app.accept("mouse3", self._start_rotate)
-        app.accept("mouse3-up", self._stop_rotate)
 
     def get_forward(self):
         """Camera forward flattened to the ground plane, normalized.
@@ -67,30 +68,23 @@ class CameraController:
     def _zoom_out(self):
         self.distance = min(self.zoom_max, self.distance + self.zoom_step)
 
-    def _start_rotate(self):
-        self._rotating = True
-        self._last_mouse = None
-
-    def _stop_rotate(self):
-        self._rotating = False
-        self._last_mouse = None
-
-    def _update_rotation(self):
-        if not self._rotating:
+    def _mouselook(self):
+        """Rotate the camera from raw mouse motion, recentering the pointer
+        each frame so it never hits the window edge (FPS-style mouse-look)."""
+        win = self.app.win
+        cx, cy = win.getXSize() // 2, win.getYSize() // 2
+        ptr = win.getPointer(0)
+        x, y = ptr.getX(), ptr.getY()
+        if not win.movePointer(0, cx, cy):
+            return                       # pointer outside window; skip this frame
+        if not self._look_ready:
+            self._look_ready = True      # first frame just centers, no jump
             return
-        if not self.app.mouseWatcherNode.hasMouse():
-            return
-
-        mx = self.app.mouseWatcherNode.getMouseX()
-        my = self.app.mouseWatcherNode.getMouseY()
-
-        if self._last_mouse is not None:
-            dx = mx - self._last_mouse[0]
-            dy = my - self._last_mouse[1]
-            self.yaw -= dx * self.mouse_sens
-            self.pitch = max(self.pitch_min, min(self.pitch_max, self.pitch + dy * self.mouse_sens))
-
-        self._last_mouse = (mx, my)
+        self.yaw += (x - cx) * self.mouse_sens
+        self.pitch = max(
+            self.pitch_min,
+            min(self.pitch_max, self.pitch + (y - cy) * self.mouse_sens),
+        )
 
     def _wall_occlusion(self, look_target, desired_pos):
         """If a wall sits between the player and the desired camera spot,
@@ -110,7 +104,7 @@ class CameraController:
         return Point3(look_target + to_hit)
 
     def update(self, dt):
-        self._update_rotation()
+        self._mouselook()
 
         target_pos = self.target.getPos()
         look_target = target_pos + Vec3(0, 0, self.height)
