@@ -1,6 +1,6 @@
 from direct.actor.Actor import Actor
 from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpPosInterval
-from panda3d.core import Vec3, CollisionSphere, CollisionNode, CollisionRay
+from panda3d.core import Vec3, CollisionSphere, CollisionNode, CollisionRay, KeyboardButton
 from math import atan2, degrees, sin, cos, radians
 from config import PLAYER_SPEED, SPRINT_MULTIPLIER, GRAVITY, JUMP_SPEED, Masks
 
@@ -44,45 +44,35 @@ class Player:
         ray_node.setIntoCollideMask(Masks.EMPTY)
         self.ray_np = self.node.attachNewNode(ray_node)
 
-        self.key_map = {
-            "forward": False,
-            "backward": False,
-            "left": False,
-            "right": False,
-            "jump": False,
-            "sprint": False,
+        # Poll keyboard state each frame instead of binding press/release
+        # events. Event-based input drops keys when a modifier (Shift) is held
+        # because Panda3D fires "shift-w" instead of "w"; polling button state
+        # is modifier-agnostic, so diagonals and sprint-while-moving just work.
+        self._mw = app.mouseWatcherNode
+        self._buttons = {
+            "forward":  KeyboardButton.ascii_key("w"),
+            "backward": KeyboardButton.ascii_key("s"),
+            "left":     KeyboardButton.ascii_key("a"),
+            "right":    KeyboardButton.ascii_key("d"),
+            "jump":     KeyboardButton.space(),
+            "sprint":   KeyboardButton.shift(),
         }
         self._current_anim = "idle"
-        self._setup_input()
 
-    def _setup_input(self):
-        self.app.accept("w", self._set_key, ["forward", True])
-        self.app.accept("w-up", self._set_key, ["forward", False])
-        self.app.accept("s", self._set_key, ["backward", True])
-        self.app.accept("s-up", self._set_key, ["backward", False])
-        self.app.accept("a", self._set_key, ["left", True])
-        self.app.accept("a-up", self._set_key, ["left", False])
-        self.app.accept("d", self._set_key, ["right", True])
-        self.app.accept("d-up", self._set_key, ["right", False])
-        self.app.accept("space", self._set_key, ["jump", True])
-        self.app.accept("space-up", self._set_key, ["jump", False])
-        self.app.accept("shift", self._set_key, ["sprint", True])
-        self.app.accept("shift-up", self._set_key, ["sprint", False])
-
-    def _set_key(self, key, value):
-        self.key_map[key] = value
+    def _down(self, action):
+        return self._mw.is_button_down(self._buttons[action])
 
     def update(self, dt, cam_yaw=0.0):
         dt = min(dt, 0.05)
 
         input_dir = Vec3(0, 0, 0)
-        if self.key_map["forward"]:
+        if self._down("forward"):
             input_dir.y += 1
-        if self.key_map["backward"]:
+        if self._down("backward"):
             input_dir.y -= 1
-        if self.key_map["left"]:
+        if self._down("left"):
             input_dir.x -= 1
-        if self.key_map["right"]:
+        if self._down("right"):
             input_dir.x += 1
 
         moving = input_dir.lengthSquared() > 0
@@ -95,7 +85,7 @@ class Player:
                 0,
             )
             speed = self.speed
-            if self.key_map["sprint"]:
+            if self._down("sprint"):
                 speed *= SPRINT_MULTIPLIER
             pos = self.node.getPos()
             pos.x += direction.x * speed * dt
@@ -104,7 +94,7 @@ class Player:
             angle = degrees(atan2(-direction.x, direction.y)) + 180
             self.node.setH(angle)
 
-        if self.key_map["jump"] and self.is_grounded:
+        if self._down("jump") and self.is_grounded:
             self.vel_z = JUMP_SPEED
             self.is_grounded = False
 
@@ -121,7 +111,7 @@ class Player:
             self.node.loop("idle")
             self._current_anim = "idle"
 
-        if moving and self.key_map["sprint"]:
+        if moving and self._down("sprint"):
             self.node.setPlayRate(1.1, "run")
         elif moving:
             self.node.setPlayRate(0.7, "run")
@@ -150,7 +140,7 @@ class Player:
             self.hp = 0
             self.die()
 
-    def apply_knockback(self, direction, force=5.0):
+    def apply_knockback(self, direction, force=2.5):
         pos = self.node.getPos()
         target = pos + direction * force
         LerpPosInterval(self.node, 0.2, target, blendType="easeOut").start()

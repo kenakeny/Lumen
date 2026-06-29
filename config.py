@@ -2,9 +2,9 @@ from panda3d.core import BitMask32
 
 PLAYER_SPEED = 7
 SPRINT_MULTIPLIER = 1.8
-CAM_DISTANCE = 10
-CAM_HEIGHT = 1.5     # look-at height on the character (chest level)
-CAM_PITCH = 35       # resting downward tilt, degrees
+CAM_DISTANCE = 9
+CAM_HEIGHT = 1.8     # look-at height on the character (head/shoulder level)
+CAM_PITCH = 12       # resting downward tilt, degrees (low, behind-the-shoulder)
 CAM_DAMPING = 5
 
 ORB_SCORE_VALUE = 10
@@ -12,10 +12,10 @@ ORB_SCORE_VALUE = 10
 GRAVITY = 20
 JUMP_SPEED = 8
 
-ROOM_SIZE = 10
+ROOM_SIZE = 24
 WALL_HEIGHT = 4
 WALL_THICKNESS = 0.4
-DOOR_WIDTH = 3
+DOOR_WIDTH = 4
 DUNGEON_GRID = 7
 DUNGEON_ROOMS = 15
 
