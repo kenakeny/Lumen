@@ -54,10 +54,10 @@ class Enemy:
         if nxt is not None and nxt != self.state_name:
             self.set_state(nxt)
 
-        # bob up and down (purely visual)
+        # bob up and down (purely visual); keep the body clear of the floor
         self._bob_timer += dt
         bob = 0.3 * abs((self._bob_timer % 1.0) - 0.5)
-        self.node.setZ(self.home.z - 1 + bob)
+        self.node.setZ(self.home.z + bob)
 
     # --- helpers the states use --------------------------------------------
 

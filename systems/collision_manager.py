@@ -22,8 +22,6 @@ class CollisionManager:
         # queue handler for ground ray
         self.ray_queue = CollisionHandlerQueue()
 
-        self.traverser.showCollisions(app.render)
-
     def register_from_collider(self, col_np):
         self.traverser.addCollider(col_np, self.handler)
 
