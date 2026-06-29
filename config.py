@@ -3,14 +3,20 @@ from panda3d.core import BitMask32
 PLAYER_SPEED = 7
 SPRINT_MULTIPLIER = 1.8
 CAM_DISTANCE = 9
-CAM_HEIGHT = 1.8     # look-at height on the character (head/shoulder level)
-CAM_PITCH = 12       # resting downward tilt, degrees (low, behind-the-shoulder)
+CAM_HEIGHT = 1.8       # look-at height on the character (head/shoulder level)
+CAM_ELEV = -12        # resting view elevation, degrees (negative = looking down)
+CAM_ELEV_MIN = -75    # how far down you can aim
+CAM_ELEV_MAX = 60     # how far up you can aim
+CAM_SENSITIVITY = 0.06  # degrees of rotation per pixel of mouse motion
 CAM_DAMPING = 9
 
 ORB_SCORE_VALUE = 10
 
 GRAVITY = 20
 JUMP_SPEED = 8
+
+KNOCKBACK_FORCE = 10      # initial knockback speed (units/sec)
+KNOCKBACK_DAMPING = 9     # how quickly knockback decays
 
 ROOM_SIZE = 24
 WALL_HEIGHT = 4

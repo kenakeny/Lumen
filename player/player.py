@@ -1,10 +1,13 @@
 from direct.actor.Actor import Actor
-from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpPosInterval
+from direct.interval.IntervalGlobal import Sequence, Wait, Func
 from panda3d.core import (
     Vec3, CollisionSphere, CollisionNode, CollisionRay, KeyboardButton,
 )
 from math import atan2, degrees
-from config import PLAYER_SPEED, SPRINT_MULTIPLIER, GRAVITY, JUMP_SPEED, Masks
+from config import (
+    PLAYER_SPEED, SPRINT_MULTIPLIER, GRAVITY, JUMP_SPEED,
+    KNOCKBACK_FORCE, KNOCKBACK_DAMPING, Masks,
+)
 
 
 class Player:
@@ -15,6 +18,7 @@ class Player:
         self.vel_z = 0.0
         self.is_grounded = True
         self.aim_dir = Vec3(0, 1, 0)   # world-space facing/shoot direction
+        self.knockback = Vec3(0, 0, 0)  # decaying horizontal knockback velocity
 
         self.node = Actor(
             "assets/models/PandaChan/act_p3d_chan.egg.pz",
@@ -88,6 +92,8 @@ class Player:
         self.node.setH(degrees(atan2(-fwd.x, fwd.y)) + 180)
 
         moving = input_dir.lengthSquared() > 0
+        pos = self.node.getPos()
+        displaced = False
         if moving:
             input_dir.normalize()
             # W follows camera-forward; A/D strafe along its perpendicular
@@ -95,9 +101,21 @@ class Player:
             speed = self.speed
             if self._down("sprint"):
                 speed *= SPRINT_MULTIPLIER
-            pos = self.node.getPos()
             pos.x += direction.x * speed * dt
             pos.y += direction.y * speed * dt
+            displaced = True
+
+        # knockback as a decaying velocity, applied through the same fluid move
+        # so the wall pusher resolves it instead of teleporting through walls
+        if self.knockback.lengthSquared() > 1e-4:
+            pos.x += self.knockback.x * dt
+            pos.y += self.knockback.y * dt
+            self.knockback *= max(0.0, 1.0 - KNOCKBACK_DAMPING * dt)
+            if self.knockback.lengthSquared() < 0.25:
+                self.knockback.set(0, 0, 0)
+            displaced = True
+
+        if displaced:
             self.node.setFluidPos(pos)
 
         if self._down("jump") and self.is_grounded:
@@ -146,10 +164,12 @@ class Player:
             self.hp = 0
             self.die()
 
-    def apply_knockback(self, direction, force=2.5):
-        pos = self.node.getPos()
-        target = pos + direction * force
-        LerpPosInterval(self.node, 0.2, target, blendType="easeOut").start()
+    def apply_knockback(self, direction, force=KNOCKBACK_FORCE):
+        d = Vec3(direction.x, direction.y, 0)
+        if d.lengthSquared() < 1e-6:
+            return
+        d.normalize()
+        self.knockback = d * force
 
     def die(self):
         print("Player has died.")

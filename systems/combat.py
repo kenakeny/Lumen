@@ -13,12 +13,12 @@ class Projectile:
         self.age = 0.0
         self.alive = True
 
-        self.node = app.loader.loadModel("assets/models/BambooLaser/bambooLaser.egg")
+        self.node = app.loader.loadModel("models/smiley")
         self.node.reparentTo(app.render)
-        self.node.setScale(3)
+        self.node.setScale(0.18)
         self.node.setPos(pos)
-        self.node.setColor(Vec4(0.2, 0.9, 1.0, 1.0))
-        self.node.setBillboardAxis()
+        self.node.setTextureOff(1)
+        self.node.setColor(Vec4(1.0, 0.85, 0.2, 1.0))
 
         col_node = CollisionNode("projectile")
         col_node.addSolid(CollisionSphere(0, 0, 0, 0.3))
@@ -52,7 +52,7 @@ class CombatSystem:
         if self.shoot_cooldown > 0:
             return
         player = self.app.player
-        direction = Vec3(player.aim_dir.x, player.aim_dir.y, 0)
+        direction = self.app.cam_controller.get_aim_dir()   # follows the crosshair
         if direction.lengthSquared() < 1e-6:
             return
         direction.normalize()

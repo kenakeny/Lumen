@@ -3,7 +3,10 @@ from panda3d.core import (
     CollisionTraverser, CollisionSegment, CollisionNode, CollisionHandlerQueue,
 )
 from math import sin, cos, radians
-from config import CAM_DISTANCE, CAM_HEIGHT, CAM_PITCH, CAM_DAMPING, Masks
+from config import (
+    CAM_DISTANCE, CAM_HEIGHT, CAM_ELEV, CAM_ELEV_MIN, CAM_ELEV_MAX,
+    CAM_SENSITIVITY, CAM_DAMPING, Masks,
+)
 
 
 class CameraController:
@@ -15,10 +18,10 @@ class CameraController:
         self.damping = CAM_DAMPING
 
         self.yaw = 0.0
-        self.pitch = CAM_PITCH
-        self.pitch_min = 5.0
-        self.pitch_max = 70.0
-        self.mouse_sens = 0.12   # degrees of rotation per pixel of mouse motion
+        self.elev = CAM_ELEV          # view elevation: negative looks down, positive up
+        self.elev_min = CAM_ELEV_MIN
+        self.elev_max = CAM_ELEV_MAX
+        self.mouse_sens = CAM_SENSITIVITY
 
         self.zoom_min = 5.0
         self.zoom_max = 40.0
@@ -62,6 +65,17 @@ class CameraController:
         rad = radians(self.yaw)
         return Vec3(sin(rad), cos(rad), 0)
 
+    def get_aim_dir(self):
+        """Full 3D direction the crosshair (screen center) points, built
+        directly from yaw + elevation. The camera is oriented along this, so
+        bullets fired down it go exactly where the crosshair is, up or down."""
+        yaw_rad, e = radians(self.yaw), radians(self.elev)
+        return Vec3(
+            sin(yaw_rad) * cos(e),
+            cos(yaw_rad) * cos(e),
+            sin(e),
+        )
+
     def _zoom_in(self):
         self.distance = max(self.zoom_min, self.distance - self.zoom_step)
 
@@ -81,9 +95,10 @@ class CameraController:
             self._look_ready = True      # first frame just centers, no jump
             return
         self.yaw += (x - cx) * self.mouse_sens
-        self.pitch = max(
-            self.pitch_min,
-            min(self.pitch_max, self.pitch + (y - cy) * self.mouse_sens),
+        # mouse up (y < center) raises the view; clamp to the aim range
+        self.elev = max(
+            self.elev_min,
+            min(self.elev_max, self.elev + (cy - y) * self.mouse_sens),
         )
 
     def _wall_occlusion(self, look_target, desired_pos):
@@ -109,13 +124,12 @@ class CameraController:
         target_pos = self.target.getPos()
         look_target = target_pos + Vec3(0, 0, self.height)
 
-        yaw_rad = radians(self.yaw)
-        pitch_rad = radians(self.pitch)
-        desired_pos = Point3(
-            target_pos.x - self.distance * sin(yaw_rad) * cos(pitch_rad),
-            target_pos.y - self.distance * cos(yaw_rad) * cos(pitch_rad),
-            target_pos.z + self.distance * sin(pitch_rad),
-        )
+        # camera sits behind the player along the aim line and looks straight
+        # down it, so screen-center == aim direction at any elevation
+        forward = self.get_aim_dir()
+        desired_pos = Point3(look_target - forward * self.distance)
+        if desired_pos.z < 0.5:          # don't sink under the floor when aiming up
+            desired_pos.z = 0.5
 
         occ_pos = self._wall_occlusion(look_target, desired_pos)
         occluded = occ_pos is not None
@@ -123,7 +137,7 @@ class CameraController:
             desired_pos = occ_pos
 
         self._dummy.setPos(desired_pos)
-        self._dummy.lookAt(look_target)
+        self._dummy.lookAt(desired_pos + forward)
         desired_quat = self._dummy.getQuat(self.app.render)
 
         current_pos = self.app.camera.getPos()
