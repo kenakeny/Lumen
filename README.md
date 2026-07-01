@@ -62,6 +62,12 @@ Models:
 1. [Wezu's p3d_samples](https://github.com/wezu/p3d_samples/tree/master/models), the amazing Panda-Chan model.
 2. [ArsThaumaturgis's PandaSampleModels](https://github.com/ArsThaumaturgis/PandaSampleModels), other models like the walls of the dungeon  
 
+Audio:
+1. Obtaining orb sound: Item Get Inorganic.wav by SilverIllusionist -- https://freesound.org/s/411171/ -- License: Attribution 4.0
+2. Shoot sound: Laser FX #3 by danlucaz -- https://freesound.org/s/517763/ -- License: Creative Commons 0
+3. Damage sound effect: Damage sound effect by Raclure -- https://freesound.org/s/458867/ -- License: Creative Commons 0
+4. Ouch: Ouch ! by Legnalegna55 -- https://freesound.org/s/547344/ -- License: Creative Commons 0
+5. Ambient music: Ambient electronic music 001 by frankum -- https://freesound.org/s/328368/ -- License: Attribution 4.0
 ## License
 
 Released under the [MIT License](LICENSE).

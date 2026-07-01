@@ -1,5 +1,5 @@
 from direct.interval.IntervalGlobal import Sequence, LerpScaleInterval, LerpColorScaleInterval, Parallel, Func
-from panda3d.core import Vec3, Vec4, CollisionSphere, CollisionNode
+from panda3d.core import Vec3, Vec4, CollisionSphere, CollisionNode, MouseButton
 from config import (
     Masks, PROJECTILE_SPEED, PROJECTILE_LIFETIME, SHOOT_COOLDOWN,
     ENEMY_KILL_SCORE,
@@ -46,7 +46,10 @@ class CombatSystem:
         self.app = app
         self.projectiles = []
         self.shoot_cooldown = 0.0
-        app.accept("mouse1", self._shoot)
+        # Poll the mouse button each frame instead of binding the "mouse1"
+        # event, so holding fires continuously and shooting works no matter
+        # what else the player is doing (moving, jumping, sprinting).
+        self._mw = app.mouseWatcherNode
 
     def _shoot(self):
         if self.shoot_cooldown > 0:
@@ -62,9 +65,12 @@ class CombatSystem:
         self.app.collision_mgr.register_from_collider(proj.col_np)
         self.projectiles.append(proj)
         self.shoot_cooldown = SHOOT_COOLDOWN
+        self.app.audio.play("shoot")
 
     def update(self, dt):
         self.shoot_cooldown = max(0, self.shoot_cooldown - dt)
+        if self._mw.is_button_down(MouseButton.one()):
+            self._shoot()
         alive = []
         for p in self.projectiles:
             if p.update(dt):
@@ -88,6 +94,7 @@ class CombatSystem:
         for enemy in self.app.enemies:
             if enemy.alive and enemy.node == enemy_np:
                 enemy.destroy()
+                self.app.audio.play("enemy_damaged")
                 self.app.score += ENEMY_KILL_SCORE
                 self.app.hud.show_feedback(
                     f"+{ENEMY_KILL_SCORE} Kill!",
@@ -116,5 +123,4 @@ class CombatSystem:
         self.projectiles.clear()
 
     def destroy(self):
-        self.app.ignore("mouse1")
         self.destroy_all()

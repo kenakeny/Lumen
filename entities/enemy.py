@@ -33,6 +33,15 @@ class Enemy:
         col_node.setIntoCollideMask(Masks.ENEMY)
         self.col_np = self.node.attachNewNode(col_node)
 
+        # wall pusher so enemies can't walk through walls (same scheme as the
+        # player); kept horizontal so it never fights the vertical bob
+        push_node = CollisionNode("enemy_push")
+        push_node.addSolid(CollisionSphere(0, 0, 0, 0.6))
+        push_node.setFromCollideMask(Masks.WALL)
+        push_node.setIntoCollideMask(Masks.EMPTY)
+        self.push_np = self.node.attachNewNode(push_node)
+        app.collision_mgr.register_pusher(self.push_np, self.node)
+
         self.state = None
         self.state_name = None
         self.set_state("patrol")
@@ -103,7 +112,9 @@ class Enemy:
 
     def destroy(self):
         self.alive = False
+        self.app.collision_mgr.unregister_pusher(self.push_np)
         self.app.render.clearLight(self.light_np)
         self.light_np.removeNode()
+        self.push_np.removeNode()
         self.col_np.removeNode()
         self.node.removeNode()

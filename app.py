@@ -8,6 +8,7 @@ from entities.enemy import Enemy
 from entities.hazard import HazardZone, HAZARD_SIZE
 from systems.collision_manager import CollisionManager
 from systems.combat import CombatSystem
+from systems.audio import AudioManager
 from ui.hud import HUD
 from ui.menu import MainMenu, PauseMenu
 from world.dungeon import Dungeon
@@ -31,6 +32,10 @@ class App(ShowBase):
         self.win.requestProperties(props)
 
         self._setup_lighting()
+
+        # audio is persistent across games; ambient loop plays under the menu too
+        self.audio = AudioManager(self)
+        self.audio.start_music()
 
         # show the menu first; the game world and loop start on "Start"
         self._started = False
@@ -214,6 +219,7 @@ class App(ShowBase):
             if not orb.collected and orb.node == orb_np:
                 orb.destroy()
                 self.score += ORB_SCORE_VALUE
+                self.audio.play("orb_pickup")
                 self.hud.show_feedback(
                     f"+{ORB_SCORE_VALUE}!",
                     color=(0.2, 0.8, 1.0, 1),
@@ -225,6 +231,7 @@ class App(ShowBase):
             return
         self.player.take_damage(ENEMY_DAMAGE)
         self._enemy_dmg_cooldown = ENEMY_DAMAGE_COOLDOWN
+        self.audio.play("ouch")
         self.hud.show_feedback("Ouch!", color=(1, 0.2, 0.2, 1))
 
         enemy_pos = entry.getIntoNodePath().getParent().getPos()

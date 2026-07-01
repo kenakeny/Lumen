@@ -59,6 +59,10 @@ PROJECTILE_DAMAGE = 50
 SHOOT_COOLDOWN = 0.3
 ENEMY_KILL_SCORE = 25
 
+# audio (0.0 - 1.0)
+SFX_VOLUME = 0.6
+MUSIC_VOLUME = 0.35
+
 
 class Masks:
     EMPTY       = BitMask32(0)

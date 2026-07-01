@@ -16,6 +16,7 @@ class CameraController:
         self.distance = CAM_DISTANCE
         self.height = CAM_HEIGHT
         self.damping = CAM_DAMPING
+        self._cur_distance = CAM_DISTANCE   # smoothed stand-off, shrinks at walls
 
         self.yaw = 0.0
         self.elev = CAM_ELEV          # view elevation: negative looks down, positive up
@@ -146,36 +147,39 @@ class CameraController:
         # camera sits behind the player along the aim line and looks straight
         # down it, so screen-center == aim direction at any elevation
         forward = self.get_aim_dir()
-        desired_pos = Point3(look_target - forward * self.distance)
+
+        # How far back the camera wants to sit. If a wall is in the way we
+        # shorten the stand-off distance instead of snapping the camera
+        # sideways, so the view stays on the aim line and never jumps.
+        full_pos = Point3(look_target - forward * self.distance)
+        occ_pos = self._wall_occlusion(look_target, full_pos)
+        target_dist = ((occ_pos - look_target).length()
+                       if occ_pos is not None else self.distance)
+
+        # Pull in quickly so the camera never clips through a wall, but ease
+        # back out gently once the wall clears — this is the only automatic
+        # position change, and it slides along the aim line so it reads as a
+        # zoom, not a lurch.
+        rate = self.damping * (3.0 if target_dist < self._cur_distance else 1.0)
+        self._cur_distance += (target_dist - self._cur_distance) * min(1.0, rate * dt)
+
+        desired_pos = Point3(look_target - forward * self._cur_distance)
         if desired_pos.z < 0.5:          # don't sink under the floor when aiming up
             desired_pos.z = 0.5
 
-        occ_pos = self._wall_occlusion(look_target, desired_pos)
-        occluded = occ_pos is not None
-        if occluded:
-            desired_pos = occ_pos
-
+        # Position tracks the player tightly (no follow-lag drift). Only the
+        # orientation is smoothed, so turning stays fluid without the camera
+        # wandering after you stop moving.
         self._dummy.setPos(desired_pos)
         self._dummy.lookAt(desired_pos + forward)
         desired_quat = self._dummy.getQuat(self.app.render)
 
-        current_pos = self.app.camera.getPos()
         current_quat = self.app.camera.getQuat(self.app.render)
-
         t = min(1.0, self.damping * dt)
-
-        dot = current_quat.dot(desired_quat)
-        if dot < 0:
+        if current_quat.dot(desired_quat) < 0:
             desired_quat = -desired_quat
         new_quat = current_quat * ((current_quat.conjugate() * desired_quat) ** t)
         new_quat.normalize()
 
-        # snap straight to the clamped spot when a wall is in the way so the
-        # view never slips behind it; smooth-follow otherwise
-        if occluded:
-            new_pos = desired_pos
-        else:
-            new_pos = current_pos + (desired_pos - current_pos) * t
-
-        self.app.camera.setPos(new_pos)
+        self.app.camera.setPos(desired_pos)
         self.app.camera.setQuat(self.app.render, new_quat)

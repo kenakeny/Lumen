@@ -32,6 +32,14 @@ class CollisionManager:
     def register_ray(self, ray_np):
         self.traverser.addCollider(ray_np, self.ray_queue)
 
+    def unregister(self, col_np):
+        """Drop a collider so the traverser stops touching a removed node."""
+        self.traverser.removeCollider(col_np)
+
+    def unregister_pusher(self, col_np):
+        self.pusher.removeCollider(col_np)
+        self.traverser.removeCollider(col_np)
+
     def traverse(self):
         self.traverser.traverse(self.app.render)
 

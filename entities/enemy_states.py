@@ -1,8 +1,10 @@
 """Finite state machine for enemy behavior.
 
-Each state is a small class with enter / update / exit. ``update`` returns the
-name of the next state to switch to, or ``None`` to stay. The Enemy owns the
+Each state is a small class with enter / update / exit. update returns the
+name of the next state to switch to, or None to stay. The Enemy owns the
 current state and exposes the movement/sensing helpers the states rely on.
+
+The idea is as follows: 
 
     Patrol --(see player)--> Chase --(close)--> Attack
        ^                       |                  |
