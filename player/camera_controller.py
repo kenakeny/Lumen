@@ -17,6 +17,7 @@ class CameraController:
         self.height = CAM_HEIGHT
         self.damping = CAM_DAMPING
         self._cur_distance = CAM_DISTANCE   # smoothed stand-off, shrinks at walls
+        self._occlude_deadband = 1.5        # ignore walls that block less than this
 
         self.yaw = 0.0
         self.elev = CAM_ELEV          # view elevation: negative looks down, positive up
@@ -135,7 +136,7 @@ class CameraController:
         d = to_hit.length()
         if d < 0.01:
             return None
-        to_hit *= max(d - 0.4, 0.5) / d   # back off a little from the wall
+        to_hit *= max(d - 0.6, 0.5) / d   # back off from the wall to avoid clipping
         return Point3(look_target + to_hit)
 
     def update(self, dt):
@@ -153,14 +154,19 @@ class CameraController:
         # sideways, so the view stays on the aim line and never jumps.
         full_pos = Point3(look_target - forward * self.distance)
         occ_pos = self._wall_occlusion(look_target, full_pos)
-        target_dist = ((occ_pos - look_target).length()
-                       if occ_pos is not None else self.distance)
+        target_dist = self.distance
+        if occ_pos is not None:
+            hit_dist = (occ_pos - look_target).length()
+            # Only react to walls that meaningfully block the shot. Grazing a
+            # corner (a small shortening) is ignored so the camera doesn't
+            # constantly twitch its distance in tight rooms.
+            if hit_dist < self.distance - self._occlude_deadband:
+                target_dist = hit_dist
 
-        # Pull in quickly so the camera never clips through a wall, but ease
-        # back out gently once the wall clears — this is the only automatic
-        # position change, and it slides along the aim line so it reads as a
-        # zoom, not a lurch.
-        rate = self.damping * (3.0 if target_dist < self._cur_distance else 1.0)
+        # Ease the stand-off toward the target: pull in a touch faster than we
+        # let back out, but gently either way so corrections read as a slow
+        # zoom along the aim line, not a lurch.
+        rate = self.damping * (1.6 if target_dist < self._cur_distance else 0.6)
         self._cur_distance += (target_dist - self._cur_distance) * min(1.0, rate * dt)
 
         desired_pos = Point3(look_target - forward * self._cur_distance)
